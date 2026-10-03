@@ -75,7 +75,7 @@ class OzonClient:
             while True:
                 body = {"dir": "ASC", "limit": PAGE_LIMIT, "offset": offset,
                         "filter": {"since": _iso(lo), "to": _iso(hi)},
-                        "with": {"analytics_data": True, "financial_data": False}}
+                        "with": {"analytics_data": True, "financial_data": True}}
                 result = self._post("/v3/posting/fbs/list", body).get("result", {})
                 postings = result.get("postings", [])
                 for p in postings:
@@ -91,7 +91,7 @@ class OzonClient:
             while True:
                 body = {"dir": "ASC", "limit": PAGE_LIMIT, "offset": offset, "translit": False,
                         "filter": {"since": _iso(lo), "to": _iso(hi)},
-                        "with": {"analytics_data": True, "financial_data": False}}
+                        "with": {"analytics_data": True, "financial_data": True}}
                 postings = self._post("/v2/posting/fbo/list", body).get("result") or []
                 for p in postings:
                     yield p

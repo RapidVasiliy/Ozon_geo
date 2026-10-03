@@ -9,6 +9,9 @@ from .store import Store
 
 CITIES = {"Москва": 1.0, "Санкт-Петербург": 0.5, "Новосибирск": 0.2, "Екатеринбург": 0.22,
           "Казань": 0.15, "Краснодар": 0.18, "Красноярск": 0.1, "Хабаровск": 0.06}
+CLUSTER = {"Москва": "Москва, МО и Дальние регионы", "Санкт-Петербург": "Санкт-Петербург и СЗО",
+           "Новосибирск": "Сибирь", "Красноярск": "Сибирь", "Хабаровск": "Дальний Восток",
+           "Екатеринбург": "Урал", "Казань": "Поволжье", "Краснодар": "Юг"}
 # категория -> (id, вес, склонность к городам, зимний сезонный множитель)
 CATEGORIES = {
     "Одежда": (1, 1.0, {"Москва": 1.2}, 0.3),
@@ -40,6 +43,7 @@ def generate(store: Store, days: int = 365, seed: int = 0, base_orders_per_day: 
                     "posting_number": f"DEMO-{n:07d}", "status": "cancelled" if rng.random() < 0.05 else "delivered",
                     "in_process_at": (day + timedelta(minutes=int(rng.integers(0, 600)))).isoformat(),
                     "analytics_data": {"city": city, "region": city, "delivery_type": "PVZ"},
+                    "financial_data": {"cluster_from": "Москва, МО и Дальние регионы", "cluster_to": CLUSTER[city]},
                     "products": [{"sku": hash(offer) % 10**9, "offer_id": offer, "name": f"{cat} {offer}",
                                   "quantity": int(rng.integers(1, 3)),
                                   "price": str(round(float(rng.uniform(300, 5000)), 2))}]}, "fbs")

@@ -9,7 +9,8 @@ import pandas as pd
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS postings(
   posting_number TEXT PRIMARY KEY, scheme TEXT, status TEXT, created_at TEXT,
-  city TEXT, region TEXT, delivery_type TEXT, warehouse TEXT);
+  city TEXT, region TEXT, delivery_type TEXT, warehouse TEXT,
+  cluster_from TEXT, cluster_to TEXT);
 CREATE TABLE IF NOT EXISTS items(
   posting_number TEXT, offer_id TEXT, sku TEXT, name TEXT, quantity INTEGER, price REAL,
   PRIMARY KEY(posting_number, offer_id, sku));
@@ -28,6 +29,10 @@ class Store:
     def __init__(self, path: str | Path = "ozon.db"):
         self.conn = sqlite3.connect(str(path))
         self.conn.executescript(SCHEMA)
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(postings)")}
+        for c in ("cluster_from", "cluster_to"):  # миграция БД, созданных до появления кластеров
+            if c not in cols:
+                self.conn.execute(f"ALTER TABLE postings ADD COLUMN {c} TEXT")
 
     def close(self) -> None:
         self.conn.close()
@@ -35,14 +40,16 @@ class Store:
     def upsert_posting(self, p: dict, scheme: str) -> None:
         """p — сырое отправление Ozon (FBS или FBO). Идемпотентно по posting_number."""
         a = p.get("analytics_data") or {}
+        f = p.get("financial_data") or {}
         created = p.get("in_process_at") or p.get("created_at") or ""
         number = p["posting_number"]
         with self.conn:
             self.conn.execute(
-                "INSERT OR REPLACE INTO postings VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO postings VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (number, scheme, p.get("status", ""), created,
                  (a.get("city") or "").strip(), (a.get("region") or "").strip(),
-                 a.get("delivery_type", ""), a.get("warehouse_name") or a.get("warehouse", "")))
+                 a.get("delivery_type", ""), a.get("warehouse_name") or a.get("warehouse", ""),
+                 (f.get("cluster_from") or "").strip(), (f.get("cluster_to") or "").strip()))
             self.conn.execute("DELETE FROM items WHERE posting_number=?", (number,))
             for it in p.get("products", []):
                 self.conn.execute(
@@ -72,6 +79,8 @@ class Store:
         SELECT p.posting_number, p.scheme, p.status, p.created_at,
                COALESCE(NULLIF(p.city,''), '{UNKNOWN_CITY}') AS city,
                COALESCE(NULLIF(p.region,''), '') AS region,
+               COALESCE(NULLIF(p.cluster_to,''), '{UNKNOWN_CITY}') AS cluster,
+               COALESCE(p.cluster_from, '') AS cluster_from,
                i.offer_id, i.name, i.quantity, i.price,
                COALESCE(cn.name, CASE WHEN pr.category_id IS NULL THEN '{UNKNOWN_CATEGORY}'
                                       ELSE 'category ' || pr.category_id END) AS category,

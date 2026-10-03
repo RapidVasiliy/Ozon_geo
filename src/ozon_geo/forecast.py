@@ -1,7 +1,7 @@
 """Задел под предиктивную аналитику: базовые прогнозы спроса по паре категория × город.
 
 Любая будущая модель (CatBoost, Prophet, ...) должна реализовать тот же интерфейс
-`fit(panel)` / `predict(horizon) -> DataFrame[category, city, week, forecast]`
+`fit(panel)` / `predict(horizon) -> DataFrame[category, destination, week, forecast]`
 и сравнивается с этими бейзлайнами через `backtest`.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Protocol
 import numpy as np
 import pandas as pd
 
-KEYS = ["category", "city"]
+KEYS = ["category", "destination"]
 
 
 class Forecaster(Protocol):

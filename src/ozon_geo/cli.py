@@ -34,22 +34,22 @@ def _cmd_report(a, store: Store) -> None:
         raise SystemExit("Нет данных. Сначала выполните `ozon-geo sync` (или `demo`).")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    long = analytics.category_city(df, a.level)
+    long = analytics.category_city(df, a.level, a.geo)
     long.to_csv(out / "category_city.csv", index=False)
-    mat = analytics.matrix(df, a.level, a.metric)
+    mat = analytics.matrix(df, a.level, a.metric, geo=a.geo)
     mat.to_csv(out / f"matrix_{a.metric}.csv")
-    top = analytics.top_cities(df, a.level, a.top, a.metric)
+    top = analytics.top_cities(df, a.level, a.top, a.metric, a.geo)
     top.to_csv(out / "top_cities_per_category.csv", index=False)
-    analytics.weekly_panel(df, a.level).to_csv(out / "weekly_panel.csv", index=False)
+    analytics.weekly_panel(df, a.level, a.geo).to_csv(out / "weekly_panel.csv", index=False)
     pd.set_option("display.width", 200, "display.max_columns", 20)
-    print(top[["category", "city", "quantity", "orders", "revenue", "share_in_category", "lift"]]
+    print(top[["category", "destination", "quantity", "orders", "revenue", "share_in_category", "lift"]]
           .round(2).to_string(index=False))
     print(f"\nФайлы сохранены в {out}/")
 
 
 def _cmd_forecast(a, store: Store) -> None:
     df = analytics.prepare(store.sales_frame(), False)
-    panel = analytics.weekly_panel(df, a.level)
+    panel = analytics.weekly_panel(df, a.level, a.geo)
     for name, model in (("moving_average", forecast.MovingAverage(4)),
                         ("seasonal_naive", forecast.SeasonalNaive(52))):
         print(name, forecast.backtest(panel, model, a.horizon))
@@ -76,6 +76,8 @@ def main(argv: list[str] | None = None) -> None:
 
     r = sub.add_parser("report", help="категория × город")
     r.add_argument("--level", choices=list(analytics.LEVELS), default="category")
+    r.add_argument("--geo", choices=list(analytics.GEOS), default="city",
+                   help="city — город доставки, cluster — кластер Ozon (для планирования остатков)")
     r.add_argument("--metric", choices=analytics.METRICS, default="quantity")
     r.add_argument("--top", type=int, default=3)
     r.add_argument("--since"), r.add_argument("--to")
@@ -85,6 +87,7 @@ def main(argv: list[str] | None = None) -> None:
 
     f = sub.add_parser("forecast", help="бейзлайн-прогноз спроса по неделям")
     f.add_argument("--level", choices=list(analytics.LEVELS), default="category")
+    f.add_argument("--geo", choices=list(analytics.GEOS), default="city")
     f.add_argument("--horizon", type=int, default=4)
     f.add_argument("--out", default="out")
     f.set_defaults(fn=_cmd_forecast)
