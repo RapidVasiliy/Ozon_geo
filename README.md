@@ -5,7 +5,7 @@
 
 ## Быстрый старт
 ```bash
-cd ozon_geo && pip install -e ".[dev]"
+pip install -e ".[dev]"
 
 # без ключей, на синтетических данных
 ozon-geo demo && ozon-geo report && ozon-geo forecast
