@@ -1,0 +1,22 @@
+[project]
+name = "ozon-geo"
+version = "0.1.0"
+description = "Выгрузка данных продавца Ozon и аналитика: какие категории товаров уходят в какие города"
+requires-python = ">=3.10"
+dependencies = ["pandas", "requests"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+ozon-geo = "ozon_geo.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
