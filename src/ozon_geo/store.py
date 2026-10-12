@@ -73,6 +73,14 @@ class Store:
             self.conn.executemany("INSERT OR REPLACE INTO category_names VALUES (?,?,?)",
                                   [(k, i, n) for (k, i), n in names.items()])
 
+    def save_category_map(self, offer_to_name: dict[str, str]) -> None:
+        """Привязать артикулы к названиям категорий (когда категорий нет в выгрузке).
+        Идентификаторы искусственные (от 10^9), чтобы не пересекаться с настоящими id Ozon."""
+        names = sorted(set(offer_to_name.values()))
+        ids = {n: 10**9 + k for k, n in enumerate(names)}
+        self.save_products({o: (ids[n], 0) for o, n in offer_to_name.items()})
+        self.save_category_names({("category", i): n for n, i in ids.items()})
+
     def sales_frame(self) -> pd.DataFrame:
         """Плоская таблица «позиция заказа» с городом, категорией и типом товара."""
         q = f"""
@@ -81,7 +89,7 @@ class Store:
                COALESCE(NULLIF(p.region,''), '') AS region,
                COALESCE(NULLIF(p.cluster_to,''), '{UNKNOWN_CITY}') AS cluster,
                COALESCE(p.cluster_from, '') AS cluster_from,
-               i.offer_id, i.name, i.quantity, i.price,
+               i.offer_id, i.sku, i.name, i.quantity, i.price,
                COALESCE(cn.name, CASE WHEN pr.category_id IS NULL THEN '{UNKNOWN_CATEGORY}'
                                       ELSE 'category ' || pr.category_id END) AS category,
                COALESCE(tn.name, CASE WHEN pr.type_id IS NULL THEN '{UNKNOWN_CATEGORY}'

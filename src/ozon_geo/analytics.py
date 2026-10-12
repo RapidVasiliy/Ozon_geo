@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-LEVELS = {"category": "category", "type": "product_type"}
+LEVELS = {"category": "category", "type": "product_type", "sku": "sku", "offer": "offer_id"}
 METRICS = ("quantity", "orders", "revenue")
 # куда уехал товар: город доставки или кластер Ozon (по нему планируются остатки FBO)
 GEOS = {"city": "city", "cluster": "cluster"}
@@ -33,6 +33,8 @@ def category_city(df: pd.DataFrame, level: str = "category", geo: str = "city") 
            .agg(quantity=("quantity", "sum"), orders=("posting_number", "nunique"),
                 revenue=("revenue", "sum"))
            .reset_index().rename(columns={col: "category", gcol: "destination"}))
+    if level in ("sku", "offer"):  # человекочитаемое название товара рядом с идентификатором
+        g.insert(1, "name", g["category"].map(df.groupby(col)["name"].first()))
     cat_total = g.groupby("category")["quantity"].transform("sum")
     city_share = g.groupby("destination")["quantity"].transform("sum") / g["quantity"].sum()
     g["share_in_category"] = g["quantity"] / cat_total

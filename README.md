@@ -3,7 +3,21 @@
 Загружает отправления продавца из Ozon Seller API (FBS/rFBS и FBO), хранит их в SQLite и считает
 матрицу «категория × город». Заложена основа под предиктивную аналитику (недельная панель + бейзлайн-прогнозы).
 
-## Быстрый старт
+## Быстрый старт без API: CSV из личного кабинета
+```bash
+ozon-geo import-csv postings_jul.csv postings_aug.csv postings_sep.csv   # отчёт по отправлениям из ЛК
+ozon-geo report --level sku --geo cluster          # SKU × кластер доставки
+ozon-geo report --level offer --geo city           # артикул × город
+ozon-geo categories categories.csv                 # необязательно: «Артикул»;«Категория» -> разрез по категориям
+ozon-geo report --level category --geo cluster
+```
+Формат: разделитель `;`, кодировка UTF-8 или Windows-1251. Нужны колонки «Номер отправления», «Принят в обработку»,
+«SKU», «Количество», «Кластер доставки», «Город доставки» (остальные — по возможности). Персональные данные
+покупателя (имя, email, телефон, адрес) не читаются и не сохраняются. В отчёте нет категорий — их задаёт
+файл `categories`. Допущения: время в отчёте московское; «Оплачено покупателем» — сумма по строке (выручка);
+отменённые (статус «Отменён» или заполнена «Дата отмены») в отчёты не попадают.
+
+## Быстрый старт через API
 ```bash
 pip install -e ".[dev]"
 
@@ -13,7 +27,7 @@ ozon-geo demo && ozon-geo report && ozon-geo forecast
 # с реальными данными (ЛК Ozon -> Настройки -> API-ключи)
 export OZON_CLIENT_ID=... OZON_API_KEY=...
 ozon-geo sync --days 180            # или --since 2026-01-01 --to 2026-06-30, --schemes fbs
-ozon-geo report --level category    # или --level type (тип товара), --metric revenue
+ozon-geo report --level category    # или type (тип товара), sku, offer (артикул); --metric revenue
 ozon-geo report --geo cluster       # по кластерам Ozon (для планирования остатков FBO)
 ```
 Результаты в `out/`: `category_city.csv` (штуки, заказы, выручка, `share_in_category`, `lift`),

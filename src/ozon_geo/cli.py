@@ -1,4 +1,4 @@
-"""CLI: ozon-geo sync | demo | report | forecast"""
+"""CLI: ozon-geo sync | import-csv | categories | demo | report | forecast"""
 from __future__ import annotations
 
 import argparse
@@ -21,6 +21,19 @@ def _cmd_sync(a, store: Store) -> None:
     to = _date(a.to) if a.to else datetime.now(timezone.utc)
     since = _date(a.since) if a.since else to - timedelta(days=a.days)
     sync(OzonClient(), store, since, to, tuple(a.schemes))
+
+
+def _cmd_import_csv(a, store: Store) -> None:
+    from .importer import import_postings_csv
+    for path in a.files:
+        import_postings_csv(store, path)
+
+
+def _cmd_categories(a, store: Store) -> None:
+    from .importer import read_category_map
+    m = read_category_map(a.file)
+    store.save_category_map(m)
+    print(f"Категории заданы для {len(m)} артикулов")
 
 
 def _cmd_demo(a, store: Store) -> None:
@@ -69,6 +82,14 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--since"), s.add_argument("--to")
     s.add_argument("--schemes", nargs="+", default=["fbs", "fbo"], choices=["fbs", "fbo"])
     s.set_defaults(fn=_cmd_sync)
+
+    c = sub.add_parser("import-csv", help="импорт CSV-отчёта по отправлениям из ЛК Ozon")
+    c.add_argument("files", nargs="+")
+    c.set_defaults(fn=_cmd_import_csv)
+
+    k = sub.add_parser("categories", help="задать категории артикулов из CSV («Артикул»;«Категория»)")
+    k.add_argument("file")
+    k.set_defaults(fn=_cmd_categories)
 
     d = sub.add_parser("demo", help="сгенерировать демо-данные")
     d.add_argument("--days", type=int, default=365), d.add_argument("--seed", type=int, default=0)
