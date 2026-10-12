@@ -9,8 +9,14 @@ METRICS = ("quantity", "orders", "revenue")
 GEOS = {"city": "city", "cluster": "cluster"}
 
 
-def prepare(df: pd.DataFrame, include_cancelled: bool = False, since=None, to=None) -> pd.DataFrame:
+DELIVERED = {"delivered", "Доставлен"}  # API отдаёт англ. статус, CSV из ЛК — русский
+
+
+def prepare(df: pd.DataFrame, include_cancelled: bool = False, since=None, to=None,
+            only_delivered: bool = False) -> pd.DataFrame:
     out = df
+    if only_delivered:
+        out = out[out["status"].isin(DELIVERED)]
     if not include_cancelled:
         out = out[out["status"] != "cancelled"]
     if since is not None:

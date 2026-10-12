@@ -67,3 +67,20 @@ def test_categories_map(tmp_path):
     d = analytics.prepare(st.sales_frame())
     g = analytics.category_city(d, geo="cluster").set_index(["category", "destination"])
     assert g.loc[("Бумага для выпечки", "Санкт-Петербург и СЗО"), "quantity"] == 3
+
+
+def test_overlapping_files_newest_wins(tmp_path):
+    from ozon_geo.importer import import_postings_files
+    src = (FIX / "ozon_lk_postings.csv").read_text(encoding="utf-8-sig").splitlines()
+    old = tmp_path / "old.csv"   # более старая выгрузка: одно отправление ещё «Ожидает сборки»
+    new = tmp_path / "new.csv"   # свежая: оно же уже «Доставлен» + более поздний заказ
+    old.write_text("\n".join(src[:2]) + "\n", encoding="utf-8-sig")
+    late = src[1].replace("11111111-0001-1", "11111111-0009-1").replace("2026-10-12 19:19:14", "2026-10-20 10:00:00")
+    new.write_text("\n".join([src[0], src[1].replace("Ожидает сборки", "Доставлен"), late]) + "\n", encoding="utf-8-sig")
+    empty = tmp_path / "empty.csv"
+    empty.write_text(src[0] + "\n", encoding="utf-8-sig")
+    st = Store(":memory:")
+    import_postings_files(st, [new, old, empty], log=lambda s: None)  # «неправильный» порядок
+    df = st.sales_frame().set_index("posting_number")
+    assert df.loc["11111111-0001-1", "status"] == "Доставлен"
+    assert len(df) == 2

@@ -24,9 +24,8 @@ def _cmd_sync(a, store: Store) -> None:
 
 
 def _cmd_import_csv(a, store: Store) -> None:
-    from .importer import import_postings_csv
-    for path in a.files:
-        import_postings_csv(store, path)
+    from .importer import import_postings_files
+    import_postings_files(store, a.files)
 
 
 def _cmd_categories(a, store: Store) -> None:

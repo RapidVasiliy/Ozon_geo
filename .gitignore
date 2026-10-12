@@ -2,3 +2,7 @@
 *.sqlite
 out/
 .env
+orders/
+*.xlsx
+.ipynb_checkpoints/
+categories.csv

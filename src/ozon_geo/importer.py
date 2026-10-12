@@ -68,8 +68,25 @@ def read_postings_csv(path: str | Path) -> pd.DataFrame:
     return df
 
 
+def import_postings_files(store: Store, paths: list[str | Path], log=print) -> int:
+    """Импорт нескольких выгрузок. Пересекающиеся отправления берутся из самой свежей выгрузки
+    (по дате последнего заказа в файле), поэтому порядок файлов в аргументах не важен."""
+    frames = [(p, read_postings_csv(p)) for p in paths]
+    frames.sort(key=lambda t: t[1]["created"].replace("", pd.NA).dropna().max() if t[1]["created"].ne("").any() else "")
+    total = 0
+    for p, df in frames:
+        if df.empty:
+            log(f"{Path(p).name}: файл пустой (только заголовок), пропущен")
+            continue
+        total += _import_frame(store, df, log)
+    return total
+
+
 def import_postings_csv(store: Store, path: str | Path, log=print) -> int:
-    df = read_postings_csv(path)
+    return _import_frame(store, read_postings_csv(path), log)
+
+
+def _import_frame(store: Store, df: pd.DataFrame, log=print) -> int:
     store.conn.execute("PRAGMA synchronous=OFF")
     n = 0
     for number, g in df.groupby("posting_number", sort=False):
