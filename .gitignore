@@ -6,3 +6,6 @@ orders/
 *.xlsx
 .ipynb_checkpoints/
 categories.csv
+__pycache__/
+*.egg-info/
+.pytest_cache/
