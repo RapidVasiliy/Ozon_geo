@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: ozon-geo
-Version: 0.1.0
-Summary: Выгрузка данных продавца Ozon и аналитика: какие категории товаров уходят в какие города
-Requires-Python: >=3.10
-Requires-Dist: pandas
-Requires-Dist: requests
-Provides-Extra: dev
-Requires-Dist: pytest; extra == "dev"
