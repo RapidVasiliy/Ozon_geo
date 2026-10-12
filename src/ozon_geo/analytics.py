@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from .store import LOCAL_TZ
+
 LEVELS = {"category": "category", "type": "product_type", "sku": "sku", "offer": "offer_id"}
 METRICS = ("quantity", "orders", "revenue")
 # куда уехал товар: город доставки или кластер Ozon (по нему планируются остатки FBO)
@@ -20,9 +22,9 @@ def prepare(df: pd.DataFrame, include_cancelled: bool = False, since=None, to=No
     if not include_cancelled:
         out = out[out["status"] != "cancelled"]
     if since is not None:
-        out = out[out["created_at"] >= pd.Timestamp(since, tz="UTC")]
+        out = out[out["created_at"] >= pd.Timestamp(since, tz=LOCAL_TZ)]
     if to is not None:
-        out = out[out["created_at"] < pd.Timestamp(to, tz="UTC")]
+        out = out[out["created_at"] < pd.Timestamp(to, tz=LOCAL_TZ)]
     return out.copy()
 
 
@@ -72,7 +74,7 @@ def weekly_panel(df: pd.DataFrame, level: str = "category", geo: str = "city") -
     """
     col, gcol = LEVELS[level], GEOS[geo]
     d = df.dropna(subset=["created_at"]).copy()
-    d["week"] = d["created_at"].dt.tz_convert(None).dt.to_period("W-SUN").dt.start_time
+    d["week"] = d["created_at"].dt.tz_localize(None).dt.to_period("W-SUN").dt.start_time
     g = (d.groupby([col, gcol, "week"])
            .agg(quantity=("quantity", "sum"), revenue=("revenue", "sum")).reset_index()
            .rename(columns={col: "category", gcol: "destination"}))

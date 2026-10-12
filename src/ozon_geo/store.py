@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS category_names(
 CREATE INDEX IF NOT EXISTS ix_postings_created ON postings(created_at);
 """
 
+LOCAL_TZ = "Europe/Moscow"  # календарь продавца: месяцы и недели считаются по московскому времени
 UNKNOWN_CITY = "(не определён)"
 UNKNOWN_CATEGORY = "(без категории)"
 
@@ -100,6 +101,6 @@ class Store:
         LEFT JOIN category_names tn ON tn.kind='type' AND tn.id = pr.type_id
         """
         df = pd.read_sql_query(q, self.conn)
-        df["created_at"] = pd.to_datetime(df["created_at"], utc=True, errors="coerce")
+        df["created_at"] = pd.to_datetime(df["created_at"], utc=True, errors="coerce").dt.tz_convert(LOCAL_TZ)
         df["revenue"] = df["price"] * df["quantity"]
         return df

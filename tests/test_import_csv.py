@@ -21,8 +21,8 @@ def test_import_utf8_and_cp1251(name):
     assert len(df) == 4
     assert set(df["cluster"]) == {"Санкт-Петербург и СЗО", "Урал", "Сибирь"}
     assert df.loc[df["posting_number"] == "11111111-0001-1", "name"].iloc[0] == 'Бумага "Полоски"'  # "" разэкранировано
-    # время московское -> UTC
-    assert df.loc[df["posting_number"] == "11111111-0001-1", "created_at"].iloc[0].hour == 16
+    # в базе UTC, в таблице — московское время (19:19 в отчёте остаётся 19:19)
+    assert df.loc[df["posting_number"] == "11111111-0001-1", "created_at"].iloc[0].hour == 19
 
 
 def test_status_money_and_empty_city():
@@ -84,3 +84,15 @@ def test_overlapping_files_newest_wins(tmp_path):
     df = st.sales_frame().set_index("posting_number")
     assert df.loc["11111111-0001-1", "status"] == "Доставлен"
     assert len(df) == 2
+
+
+def test_month_boundary_uses_moscow_time():
+    st = Store(":memory:")
+    for num, ts in (("X-1", "2026-08-31T22:30:00Z"), ("X-2", "2026-08-31T20:30:00Z")):  # 01:30 и 23:30 по Москве
+        st.upsert_posting({"posting_number": num, "status": "Доставлен", "in_process_at": ts,
+                           "analytics_data": {"city": "Москва"}, "financial_data": {"cluster_to": "Москва"},
+                           "products": [{"sku": "1", "offer_id": "a", "name": "n", "quantity": 1, "price": 1}]}, "csv")
+    months = st.sales_frame().set_index("posting_number")["created_at"].dt.strftime("%Y-%m")
+    assert months["X-1"] == "2026-09" and months["X-2"] == "2026-08"
+    d = analytics.prepare(st.sales_frame(), since="2026-09-01")  # фильтр тоже по московским суткам
+    assert list(d["posting_number"]) == ["X-1"]
