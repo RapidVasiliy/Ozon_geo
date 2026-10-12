@@ -210,3 +210,52 @@ def monthly_sku_heatmap(df: pd.DataFrame, metric: str = "quantity"):
     ax.set_title(f"{metric}: все SKU × месяцы (цвет — доля от максимума SKU, цвет подписи — семейство)", fontsize=10)
     fig.tight_layout()
     return fig
+
+
+def cluster_month_bars(df: pd.DataFrame, cluster: str, month: str, metric: str = "quantity", geo: str = "cluster",
+                       max_families: int = 5):
+    """Один кластер, один месяц: столбики SKU по убыванию продаж (слева самые популярные), подписи — SKU и название.
+
+    Цвет — семейство товара (единое для всех графиков: считается по всему датасету, а не по выбранной паре),
+    над столбиком — значение. `month` в формате "2026-09".
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    d = df.copy()
+    d["month"] = d["created_at"].dt.strftime("%Y-%m")
+    _, _, fam, _, fam_color = _sku_colors(d, metric, max_families)  # цвета по всему датасету
+    names = d.groupby("sku")["name"].first()
+    sub = d[(d[analytics.GEOS[geo]] == cluster) & (d["month"] == month)]
+    if sub.empty:
+        raise ValueError(f"Нет данных: {cluster!r}, {month}")
+    s = sub.groupby("sku")[metric].sum().sort_values(ascending=False)
+    unit = {"quantity": "шт.", "revenue": "руб."}.get(metric, "")
+    fig, ax = plt.subplots(figsize=(max(9, 0.32 * len(s) + 2.5), 8))
+    ax.bar(range(len(s)), s.values, color=[fam_color[fam[k]] for k in s.index], width=0.8)
+    for i, v in enumerate(s.values):
+        ax.text(i, v, f"{v:,.0f}", ha="center", va="bottom", fontsize=7)
+    ax.set_xticks(range(len(s)), [f"{k}  {short_name(names[k], 28)}" for k in s.index], rotation=90, fontsize=7)
+    ax.set_xlim(-0.7, len(s) - 0.3)
+    ax.set_ylabel(unit)
+    ax.grid(axis="y", alpha=0.25)
+    ax.set_axisbelow(True)
+    last = d["created_at"].max()
+    partial = f", данные до {last:%d.%m}" if last.strftime("%Y-%m") == month and not last.is_month_end else ""
+    ax.set_title(f"{cluster} — {month}{partial}\n{len(s)} SKU, всего {s.sum():,.0f} {unit}; топ-5 SKU дают "
+                 f"{s.head(5).sum() / s.sum():.0%}", fontsize=11)
+    used = [f for f in dict.fromkeys(fam[k] for k in s.index)]
+    ax.legend(handles=[Patch(color=fam_color[f], label=f) for f in used], loc="upper right", fontsize=8,
+              title="Семейство товара")
+    fig.tight_layout()
+    return fig
+
+
+def save_png_pdf(fig, base: str, dpi: int = 150) -> tuple[str, str]:
+    """Сохранить рисунок как `base.png` (растр, `dpi` ppi) и `base.pdf` (вектор, текст остаётся текстом)."""
+    import matplotlib
+
+    with matplotlib.rc_context({"pdf.fonttype": 42}):  # TrueType: текст в PDF выделяется и ищется
+        fig.savefig(f"{base}.png", dpi=dpi)
+        fig.savefig(f"{base}.pdf")
+    return f"{base}.png", f"{base}.pdf"
