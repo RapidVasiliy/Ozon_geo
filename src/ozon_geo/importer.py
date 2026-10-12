@@ -80,7 +80,7 @@ def import_postings_csv(store: Store, path: str | Path, log=print) -> int:
                                "delivery_type": first["delivery_type"], "warehouse_name": first["warehouse"]},
             "financial_data": {"cluster_from": first["cluster_from"], "cluster_to": first["cluster_to"]},
             "products": [{"sku": r.sku, "offer_id": r.offer_id, "name": r.name, "quantity": r.quantity,
-                          "price": r.paid / r.quantity} for r in g.itertuples()],
+                          "price": r.paid} for r in g.itertuples()],
         }, "csv")
         n += 1
     log(f"Импортировано отправлений: {n}, позиций: {len(df)}")

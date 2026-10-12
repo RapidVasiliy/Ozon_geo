@@ -31,7 +31,7 @@ def test_status_money_and_empty_city():
     d = analytics.prepare(df)
     assert len(d) == 3  # отменённое исключено
     row = d[d["posting_number"] == "11111111-0002-1"].iloc[0]
-    assert row["quantity"] == 2 and round(row["revenue"], 2) == 168.17  # paid = сумма по строке
+    assert row["quantity"] == 2 and round(row["revenue"], 2) == 336.34  # «Оплачено покупателем» — цена за штуку
     assert row["city"] == "(не определён)"
     assert d[d["posting_number"] == "11111111-0004-1"]["revenue"].iloc[0] == 300.5  # запятая как разделитель
 
