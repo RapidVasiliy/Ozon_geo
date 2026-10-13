@@ -24,9 +24,23 @@ def test_sheet_name_rules():
     assert _sheet_name(NOTES_SHEET, used) != NOTES_SHEET  # имя служебной вкладки занято
 
 
+def test_static_totals_are_numbers(tmp_path):
+    df = _df()
+    wb = load_workbook(cluster_month_workbook(df, str(tmp_path / "s.xlsx")))
+    ws = wb[wb.sheetnames[0]]
+    n_months = len(ws[1]) - 3
+    for r in range(2, ws.max_row + 1):
+        row = [ws.cell(r, c).value for c in range(3, 3 + n_months)]
+        assert all(isinstance(v, (int, float)) for v in row) or ws.cell(r, 1).value == "Итого"
+        assert ws.cell(r, 3 + n_months).value == sum(row)  # итог = сумма месяцев, без формул
+    assert ws.cell(ws.max_row, 3 + n_months).value == sum(
+        ws.cell(r, 3 + n_months).value for r in range(2, ws.max_row))  # общий итог = сумма итогов SKU
+    assert wb[NOTES_SHEET].cell(4, 3).value == ws.cell(ws.max_row, 3 + n_months).value
+
+
 def test_layout_values_and_formula_ranges(tmp_path):
     df = _df()
-    path = cluster_month_workbook(df, str(tmp_path / "c.xlsx"))
+    path = cluster_month_workbook(df, str(tmp_path / "c.xlsx"), formulas=True)
     wb = load_workbook(path)
     clusters = df.groupby("cluster")["quantity"].sum().sort_values(ascending=False).index.tolist()
     assert wb.sheetnames[:-1] == clusters and wb.sheetnames[-1] == NOTES_SHEET  # вкладка = кластер, по убыванию объёма
@@ -50,4 +64,5 @@ def test_layout_values_and_formula_ranges(tmp_path):
         assert re.fullmatch(rf"=SUM\(C2:C{last - 1}\)", ws.cell(last, 3).value)
         assert ws.freeze_panes == "C2"
     notes = wb[NOTES_SHEET]
-    assert notes.cell(4, 1).value == clusters[0] and notes.cell(4, 1).hyperlink is not None
+    assert notes.cell(4, 1).value == clusters[0]
+    assert notes.cell(4, 1).hyperlink.location == f"'{clusters[0]}'!A1"  # внутренняя ссылка

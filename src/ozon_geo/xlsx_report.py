@@ -7,12 +7,18 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
+from openpyxl.worksheet.hyperlink import Hyperlink
 
 from . import analytics
 
 FONT = "Arial"
 NOTES_SHEET = "Примечания"
 METRICS = {"quantity": ("штуки", "#,##0;-#,##0;\"–\""), "revenue": ("выручка, руб.", "#,##0;-#,##0;\"–\"")}
+
+
+def _num(v) -> int | float:
+    """Целое для штук, число с копейками для выручки."""
+    return int(v) if float(v).is_integer() else round(float(v), 2)
 
 
 def _sheet_name(name: str, used: set[str]) -> str:
@@ -27,8 +33,13 @@ def _sheet_name(name: str, used: set[str]) -> str:
 
 
 def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity", geo: str = "cluster",
-                           source_note: str = "") -> str:
-    """Собрать xlsx. `df` — результат `analytics.prepare(...)`. Итоги по строкам/столбцам — формулами."""
+                           source_note: str = "", formulas: bool = False) -> str:
+    """Собрать xlsx. `df` — результат `analytics.prepare(...)`.
+
+    Итоги по умолчанию — готовые числа: файл показывает значения в любом просмотрщике (формулы без
+    сохранённых значений в превью выглядят пустыми, а пересчитать их нечем без Excel/LibreOffice).
+    `formulas=True` — итоги формулами `=SUM(...)`, Excel посчитает их при открытии.
+    """
     label, fmt = METRICS[metric]
     d = df.copy()
     d["month"] = d["created_at"].dt.strftime("%Y-%m")
@@ -48,6 +59,7 @@ def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity"
     wb = Workbook()
     wb.remove(wb.active)
     used: set[str] = set()
+    totals: dict[str, float] = {}
     index: list[tuple[str, str, int, int, int]] = []  # (кластер, вкладка, SKU, строка итога, столбец итога)
     n_first, n_last = 3, 2 + len(months)  # столбцы месяцев: C..; «Итого» следом
     tot_col = n_last + 1
@@ -69,13 +81,14 @@ def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity"
             for j, v in enumerate(row.values, start=n_first):
                 c = ws.cell(i, j, float(v) if metric == "revenue" else int(v))
                 c.font, c.number_format = body_font, fmt
-            c = ws.cell(i, tot_col, f"=SUM({L(n_first)}{i}:{L(n_last)}{i})")
+            c = ws.cell(i, tot_col, f"=SUM({L(n_first)}{i}:{L(n_last)}{i})" if formulas else _num(row.sum()))
             c.font, c.number_format = Font(name=FONT, size=10, bold=True), fmt
         end = len(pv) + 1
         tr = end + 1
         ws.cell(tr, 1, "Итого")
         for j in range(n_first, tot_col + 1):
-            ws.cell(tr, j, f"=SUM({L(j)}2:{L(j)}{end})").number_format = fmt
+            val = f"=SUM({L(j)}2:{L(j)}{end})" if formulas else _num(pv.iloc[:, j - n_first].sum() if j < tot_col else pv.values.sum())
+            ws.cell(tr, j, val).number_format = fmt
         for j in range(1, tot_col + 1):
             c = ws.cell(tr, j)
             c.font, c.fill, c.border = head_font, total_fill, Border(top=thin)
@@ -86,6 +99,7 @@ def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity"
             ws.column_dimensions[L(j)].width = 12 if j < tot_col else 11
         ws.row_dimensions[1].height = 30
         ws.sheet_properties.tabColor = "4472C4"
+        totals[cl] = _num(pv.values.sum())
         index.append((cl, title, len(pv), tr, tot_col))
 
     # --- «Примечания»: оглавление со ссылками и допущения -------------------------------------------
@@ -98,13 +112,14 @@ def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity"
     for i, (cl, title, n_sku, tr, tc) in enumerate(index, start=4):
         q = title.replace("'", "''")
         c = ns.cell(i, 1, title)
-        c.hyperlink, c.font = f"#'{q}'!A1", Font(name=FONT, size=10, color="0563C1", underline="single")
+        c.hyperlink = Hyperlink(ref=c.coordinate, location=f"'{q}'!A1", display=title)  # внутренняя ссылка на вкладку
+        c.font = Font(name=FONT, size=10, color="0563C1", underline="single")
         ns.cell(i, 2, n_sku).font = body_font
-        c = ns.cell(i, 3, f"='{q}'!{L(tc)}{tr}")
+        c = ns.cell(i, 3, f"='{q}'!{L(tc)}{tr}" if formulas else totals[cl])
         c.font, c.number_format = Font(name=FONT, size=10, color="008000"), fmt  # ссылка на другой лист
     r = 4 + len(index)
     ns.cell(r, 1, "Всего")
-    ns.cell(r, 3, f"=SUM(C4:C{r - 1})").number_format = fmt
+    ns.cell(r, 3, f"=SUM(C4:C{r - 1})" if formulas else sum(totals.values())).number_format = fmt
     for j in (1, 2, 3):
         ns.cell(r, j).font, ns.cell(r, j).fill = head_font, total_fill
     notes = [

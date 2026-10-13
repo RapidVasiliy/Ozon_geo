@@ -41,7 +41,7 @@ def _cmd_cluster_xlsx(a, store: Store) -> None:
     if df.empty:
         raise SystemExit("Нет данных. Сначала выполните `ozon-geo import-csv` / `sync`.")
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    print("Сохранено:", cluster_month_workbook(df, a.out, a.metric, a.geo))
+    print("Сохранено:", cluster_month_workbook(df, a.out, a.metric, a.geo, formulas=a.formulas))
 
 
 def _cmd_demo(a, store: Store) -> None:
@@ -104,6 +104,7 @@ def main(argv: list[str] | None = None) -> None:
     x.add_argument("--metric", choices=["quantity", "revenue"], default="quantity")
     x.add_argument("--geo", choices=list(analytics.GEOS), default="cluster")
     x.add_argument("--since"), x.add_argument("--to")
+    x.add_argument("--formulas", action="store_true", help="итоги формулами (по умолчанию — числами)")
     x.add_argument("--only-delivered", action="store_true")
     x.add_argument("--include-cancelled", action="store_true")
     x.set_defaults(fn=_cmd_cluster_xlsx)
