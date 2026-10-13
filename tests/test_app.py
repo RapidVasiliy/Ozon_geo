@@ -204,3 +204,22 @@ def test_check_and_retry_logging(monkeypatch):
     c.progress = notes.append
     assert c._post("/x", {}) == {"postings": []}
     assert len(notes) == 2 and "попытка 1/3" in notes[0] and "HTTP 500" in notes[1]
+
+
+def test_upsert_tolerates_missing_and_null_fields():
+    """Реальные отправления бывают неполными: null вместо объектов, нет цены/склада/кластеров."""
+    st = Store(":memory:")
+    for i, p in enumerate([
+        {"posting_number": "a", "status": "delivered", "in_process_at": "2026-01-01T00:00:00Z",
+         "analytics_data": None, "financial_data": None, "products": [{"sku": 1, "offer_id": "x", "quantity": 1}]},
+        {"posting_number": "b", "status": "cancelled", "in_process_at": "2026-01-02T00:00:00Z",
+         "financial_data": {"products": None, "cluster_to": None}, "products": [
+             {"sku": 2, "offer_id": "y", "name": None, "quantity": 2, "price": {"amount": None}},
+             {"sku": 3, "offer_id": "z", "quantity": 1, "price": "12,5"}]},
+        {"posting_number": "c", "status": "delivered", "in_process_at": None, "products": []},
+    ]):
+        st.upsert_posting(p, "fbs")
+    assert st.conn.execute("select count(*) from postings").fetchone()[0] == 3
+    assert st.conn.execute("select count(*) from items").fetchone()[0] == 3
+    df = st.sales_frame()
+    assert set(df["cluster"]) == {"(не определён)"} and len(df) == 3
