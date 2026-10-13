@@ -139,3 +139,21 @@ def test_real_v4_posting_shape():
     posting["financial_data"] = {"cluster_to": "Уфа"}
     st.upsert_posting(posting, "fbs")
     assert st.sales_frame().iloc[0]["price"] == 279.0
+
+
+def test_old_v4_posting_without_customer_price():
+    """Старое отправление (2023): customer_price = 0 с пустой валютой -> берём price.amount, а не 0."""
+    posting = {
+        "posting_number": "0108964297-0104-3", "status": "delivered", "in_process_at": "2023-10-13T07:25:33Z",
+        "products": [{"offer_id": "П0998", "name": "Восковые салфетки", "sku": 810066919, "quantity": 1,
+                      "price": {"amount": "281", "currency": "RUB"}}],
+        "analytics_data": {"region": "", "city": "", "warehouse": "Ветеранов"},
+        "financial_data": {"products": [{"product_id": 810066919, "price": 281,
+                                         "customer_price": {"amount": "0", "currency": ""}}],
+                           "cluster_from": "Санкт-Петербург и СЗО", "cluster_to": "Москва, МО и Дальние регионы"},
+    }
+    st = Store(":memory:")
+    st.upsert_posting(posting, "fbs")
+    row = st.sales_frame().iloc[0]
+    assert row["price"] == 281.0 and row["cluster"] == "Москва, МО и Дальние регионы"
+    assert row["created_at"].strftime("%Y-%m-%d") == "2023-10-13"

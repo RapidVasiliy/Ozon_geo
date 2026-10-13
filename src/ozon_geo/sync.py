@@ -19,6 +19,8 @@ def sync(client: OzonClient, store: Store, since: datetime | None = None, to: da
         for posting in sources[scheme](since, to):
             store.upsert_posting(posting, scheme)
             n += 1
+            if n % 500 == 0:  # прогресс: загрузка многолетней истории идёт долго
+                log(f"{scheme.upper()}: {n} отправлений, дата последнего — {str(posting.get('in_process_at') or posting.get('created_at') or '')[:10]}")
         counts[scheme] = n
         log(f"{scheme.upper()}: загружено отправлений — {n}")
 
