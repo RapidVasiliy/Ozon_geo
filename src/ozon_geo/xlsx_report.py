@@ -47,7 +47,7 @@ def cluster_month_workbook(df: pd.DataFrame, path: str, metric: str = "quantity"
     months = list(pd.period_range(first.strftime("%Y-%m"), last.strftime("%Y-%m"), freq="M").strftime("%Y-%m"))
     partial = not last.is_month_end
     headers = [f"{m} (до {last:%d.%m})" if partial and m == months[-1] else m for m in months]
-    names = d.groupby("sku")["name"].first()
+    names = analytics.latest_names(d, "sku")
     col = analytics.GEOS[geo]
     clusters = d.groupby(col)[metric].sum().sort_values(ascending=False).index.tolist()
 

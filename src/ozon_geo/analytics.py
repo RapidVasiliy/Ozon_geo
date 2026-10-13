@@ -14,6 +14,11 @@ GEOS = {"city": "city", "cluster": "cluster"}
 DELIVERED = {"delivered", "Доставлен"}  # API отдаёт англ. статус, CSV из ЛК — русский
 
 
+def latest_names(df: pd.DataFrame, key: str = "sku") -> pd.Series:
+    """Самое свежее (по дате отправления) название для каждого ключа: у SKU название могло меняться."""
+    return df.sort_values("created_at", kind="stable").groupby(key)["name"].last()
+
+
 def prepare(df: pd.DataFrame, include_cancelled: bool = False, since=None, to=None,
             only_delivered: bool = False) -> pd.DataFrame:
     out = df
@@ -42,7 +47,7 @@ def category_city(df: pd.DataFrame, level: str = "category", geo: str = "city") 
                 revenue=("revenue", "sum"))
            .reset_index().rename(columns={col: "category", gcol: "destination"}))
     if level in ("sku", "offer"):  # человекочитаемое название товара рядом с идентификатором
-        g.insert(1, "name", g["category"].map(df.groupby(col)["name"].first()))
+        g.insert(1, "name", g["category"].map(latest_names(df, col)))
     cat_total = g.groupby("category")["quantity"].transform("sum")
     city_share = g.groupby("destination")["quantity"].transform("sum") / g["quantity"].sum()
     g["share_in_category"] = g["quantity"] / cat_total

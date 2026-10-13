@@ -193,6 +193,7 @@ def main() -> None:
                 "monthly_sku_heatmap": lambda: viz.monthly_sku_heatmap(df, a.metric),
                 "heatmap_sku_cluster": lambda: viz.heatmap(df, a.level, a.geo, a.metric, 25, 15),
                 "weekly_totals": lambda: viz.weekly_totals(df),
+                "seasonality": lambda: viz.seasonality(df, a.metric),
             }
             for name, make in charts.items():
                 try:
