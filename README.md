@@ -3,6 +3,17 @@
 Загружает отправления продавца из Ozon Seller API (FBS/rFBS и FBO), хранит их в SQLite и считает
 матрицу «категория × город». Заложена основа под предиктивную аналитику (недельная панель + бейзлайн-прогнозы).
 
+## Запуск одним файлом (без Jupyter)
+```bash
+pip install -r requirements.txt            # один раз: pandas, requests, openpyxl, matplotlib
+python run_ozon_geo.py                     # API, с 2022-01-01 до сегодня (ключи спросит или возьмёт из OZON_CLIENT_ID/OZON_API_KEY)
+python run_ozon_geo.py --since 2023-10-01 --to 2024-10-01
+python run_ozon_geo.py --source csv --csv "orders/*.csv"
+python run_ozon_geo.py --source db         # пересобрать отчёты из ozon.db без загрузки
+```
+Результат в `out/`: `clusters_by_month.xlsx` (вкладка = кластер, строки = SKU, столбцы = месяцы), `ozon_geo.xlsx`,
+графики PNG и PDF. Настройки по умолчанию — в начале файла `run_ozon_geo.py`.
+
 ## Ноутбук (интерфейс)
 ```bash
 pip install -e ".[notebook]"
