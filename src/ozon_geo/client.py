@@ -73,14 +73,14 @@ class OzonClient:
     def iter_fbs_postings(self, since: datetime, to: datetime) -> Iterator[dict]:
         """FBS/rFBS отправления через /v4/posting/fbs/list (v3 отключён 31.08.2026). Постраничность — по курсору.
 
-        Окно запроса — до года (по документации v3); берём FBS_CHUNK_DAYS. Город — в analytics_data,
-        кластеры — в financial_data. ВНИМАНИЕ: формат тела v4 выведен из v3 и ответа v4 (has_next/cursor/postings)
-        и не сверен с документацией — проверьте на реальном запросе.
+        Тело запроса сверено с документацией v4: filter.since/to обязательны (окно до года), limit 1..100,
+        sort_dir, cursor, with.{analytics_data,financial_data,...}. Ответ: {cursor, has_next, postings}.
+        Город — в analytics_data, кластеры — в financial_data (названия этих полей в ответе v4 не проверены).
         """
         for lo, hi in date_chunks(since, to, FBS_CHUNK_DAYS):
             cursor = ""
             while True:
-                body = {"dir": "ASC", "limit": FBS_PAGE_LIMIT, "cursor": cursor,
+                body = {"sort_dir": "ASC", "limit": FBS_PAGE_LIMIT, "cursor": cursor,
                         "filter": {"since": _iso(lo), "to": _iso(hi)},
                         "with": {"analytics_data": True, "financial_data": True}}
                 data = self._post("/v4/posting/fbs/list", body)

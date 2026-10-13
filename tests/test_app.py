@@ -42,7 +42,7 @@ def test_date_chunks_cover_range():
 def test_sync_and_aggregate_idempotent():
     st = Store(":memory:")
     for _ in range(2):  # повторная загрузка не должна дублировать данные
-        sync(FakeClient(), st, log=lambda s: None)
+        sync(FakeClient(), st, schemes=("fbs", "fbo"), log=lambda s: None)
     df = analytics.prepare(st.sales_frame())
     assert len(df) == 2  # отменённое исключено
     g = analytics.category_city(df).set_index(["category", "destination"])
@@ -67,7 +67,7 @@ def test_demo_affinity_and_forecast():
 
 def test_cluster_aggregation_and_db_migration(tmp_path):
     st = Store(":memory:")
-    sync(FakeClient(), st, log=lambda s: None)
+    sync(FakeClient(), st, schemes=("fbs", "fbo"), log=lambda s: None)
     df = analytics.prepare(st.sales_frame())
     g = analytics.category_city(df, geo="cluster").set_index(["category", "destination"])
     assert g.loc[("Игрушки", "Поволжье"), "quantity"] == 2
@@ -111,3 +111,5 @@ def test_fbs_v4_cursor_pagination(monkeypatch):
     assert [x[0] for x in calls] == ["/v4/posting/fbs/list"] * 2
     assert calls[1][1]["cursor"] == "c1" and "offset" not in calls[1][1]
     assert calls[0][1]["with"] == {"analytics_data": True, "financial_data": True}
+    assert calls[0][1]["sort_dir"] == "ASC" and "dir" not in calls[0][1] and calls[0][1]["limit"] == 100
+    assert set(calls[0][1]["filter"]) == {"since", "to"}  # без фильтров по статусам/складам: иначе вернётся пусто
