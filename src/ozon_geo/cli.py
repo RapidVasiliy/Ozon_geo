@@ -1,4 +1,4 @@
-"""CLI: ozon-geo sync | import-csv | categories | demo | report | forecast"""
+"""CLI: ozon-geo sync | import-csv | categories | cluster-xlsx | demo | report | forecast"""
 from __future__ import annotations
 
 import argparse
@@ -33,6 +33,15 @@ def _cmd_categories(a, store: Store) -> None:
     m = read_category_map(a.file)
     store.save_category_map(m)
     print(f"Категории заданы для {len(m)} артикулов")
+
+
+def _cmd_cluster_xlsx(a, store: Store) -> None:
+    from .xlsx_report import cluster_month_workbook
+    df = analytics.prepare(store.sales_frame(), a.include_cancelled, a.since, a.to, a.only_delivered)
+    if df.empty:
+        raise SystemExit("Нет данных. Сначала выполните `ozon-geo import-csv` / `sync`.")
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    print("Сохранено:", cluster_month_workbook(df, a.out, a.metric, a.geo))
 
 
 def _cmd_demo(a, store: Store) -> None:
@@ -89,6 +98,15 @@ def main(argv: list[str] | None = None) -> None:
     k = sub.add_parser("categories", help="задать категории артикулов из CSV («Артикул»;«Категория»)")
     k.add_argument("file")
     k.set_defaults(fn=_cmd_categories)
+
+    x = sub.add_parser("cluster-xlsx", help="xlsx: вкладка = кластер, строки = SKU, столбцы = месяцы")
+    x.add_argument("--out", default="out/clusters_by_month.xlsx")
+    x.add_argument("--metric", choices=["quantity", "revenue"], default="quantity")
+    x.add_argument("--geo", choices=list(analytics.GEOS), default="cluster")
+    x.add_argument("--since"), x.add_argument("--to")
+    x.add_argument("--only-delivered", action="store_true")
+    x.add_argument("--include-cancelled", action="store_true")
+    x.set_defaults(fn=_cmd_cluster_xlsx)
 
     d = sub.add_parser("demo", help="сгенерировать демо-данные")
     d.add_argument("--days", type=int, default=365), d.add_argument("--seed", type=int, default=0)
