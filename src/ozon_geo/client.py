@@ -48,27 +48,55 @@ class OzonClient:
         self.max_retries = max_retries
         self.backoff = backoff
         self.progress = None  # необязательный обратный вызов: progress("текст") — сообщения о ходе загрузки
+        self.timeout = 60  # секунд на один запрос
+
+    def _headers(self) -> dict:
+        return {"Client-Id": str(self.client_id), "Api-Key": self.api_key, "Content-Type": "application/json"}
+
+    def _retry_note(self, path: str, attempt: int, reason: str) -> None:
+        delay = self.backoff * 2 ** attempt
+        if self.progress:
+            self.progress(f"  {path}: попытка {attempt + 1}/{self.max_retries} не удалась ({reason}); жду {delay:.0f} с и повторяю")
+        time.sleep(delay)
 
     def _post(self, path: str, body: dict) -> dict:
-        headers = {"Client-Id": str(self.client_id), "Api-Key": self.api_key,
-                   "Content-Type": "application/json"}
         for attempt in range(self.max_retries):
+            last = attempt == self.max_retries - 1
             try:
-                resp = self.session.post(self.base_url + path, json=body, headers=headers, timeout=60)
+                resp = self.session.post(self.base_url + path, json=body, headers=self._headers(), timeout=self.timeout)
             except requests.RequestException as e:
-                if attempt == self.max_retries - 1:
-                    raise OzonError(f"{path}: {e}") from e
-                time.sleep(self.backoff * 2 ** attempt)
+                if last:
+                    raise OzonError(f"{path}: {type(e).__name__}: {e}") from e
+                self._retry_note(path, attempt, type(e).__name__)
                 continue
             if resp.status_code == 429 or resp.status_code >= 500:
-                if attempt == self.max_retries - 1:
+                if last:
                     raise OzonError(f"{path}: HTTP {resp.status_code} {resp.text[:200]}")
-                time.sleep(self.backoff * 2 ** attempt)
+                self._retry_note(path, attempt, f"HTTP {resp.status_code}")
                 continue
             if resp.status_code != 200:
                 raise OzonError(f"{path}: HTTP {resp.status_code} {resp.text[:300]}")
             return resp.json()
         raise OzonError(f"{path}: исчерпаны попытки")
+
+    def check(self, timeout: float = 20) -> tuple[bool, str]:
+        """Один быстрый запрос без повторов: доступен ли API и принят ли ключ. Возвращает (ок, сообщение)."""
+        now = datetime.now(timezone.utc)
+        body = {"sort_dir": "ASC", "limit": 1, "cursor": "",
+                "filter": {"since": _iso(now - timedelta(days=1)), "to": _iso(now)}}
+        t0 = time.time()
+        try:
+            r = self.session.post(self.base_url + "/v4/posting/fbs/list", json=body, headers=self._headers(),
+                                  timeout=timeout)
+        except requests.RequestException as e:
+            return False, (f"нет связи с {self.base_url} (ждали {timeout:.0f} с): {type(e).__name__}: {e}. "
+                           "Проверьте интернет, VPN и прокси (переменные HTTPS_PROXY/HTTP_PROXY).")
+        dt = time.time() - t0
+        if r.status_code == 200:
+            return True, f"API доступен, ключ принят (ответ за {dt:.1f} с)"
+        if r.status_code in (401, 403):
+            return False, f"HTTP {r.status_code}: Client-Id или Api-Key не подходят либо нет прав. Ответ: {r.text[:200]}"
+        return False, f"HTTP {r.status_code}: {r.text[:200]}"
 
     # --- отправления ---------------------------------------------------------------------
     def iter_fbs_postings(self, since: datetime, to: datetime) -> Iterator[dict]:

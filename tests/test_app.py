@@ -168,3 +168,39 @@ def test_progress_callback_reports_windows(monkeypatch):
     c.progress = msgs.append
     list(c.iter_fbs_postings(datetime(2026, 1, 1, tzinfo=timezone.utc), datetime(2026, 7, 1, tzinfo=timezone.utc)))
     assert len(msgs) == 3 and msgs[0].startswith("FBS: запрашиваю период 2026-01-01")  # 181 день = 3 окна по 90
+
+
+def test_check_and_retry_logging(monkeypatch):
+    import requests
+
+    class Resp:
+        def __init__(self, code, text=""):
+            self.status_code, self.text = code, text
+
+        def json(self):
+            return {"postings": []}
+
+    class Sess:
+        def __init__(self, results):
+            self.results = list(results)
+
+        def post(self, url, **kw):
+            r = self.results.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+    ok, msg = OzonClient("1", "k", session=Sess([Resp(200)])).check()
+    assert ok and "ключ принят" in msg
+    ok, msg = OzonClient("1", "k", session=Sess([Resp(403, "forbidden")])).check()
+    assert not ok and "403" in msg
+    ok, msg = OzonClient("1", "k", session=Sess([requests.ConnectTimeout("t")])).check(timeout=5)
+    assert not ok and "нет связи" in msg and "прокси" in msg
+
+    # повторы логируются, а не молчат
+    monkeypatch.setattr("ozon_geo.client.time.sleep", lambda s: None)
+    c = OzonClient("1", "k", session=Sess([requests.ReadTimeout("x"), Resp(500), Resp(200)]), max_retries=3)
+    notes = []
+    c.progress = notes.append
+    assert c._post("/x", {}) == {"postings": []}
+    assert len(notes) == 2 and "попытка 1/3" in notes[0] and "HTTP 500" in notes[1]

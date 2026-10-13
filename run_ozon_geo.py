@@ -28,7 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "src"))  # работает и без `pip install -e .`
 try:
-    sys.stdout.reconfigure(encoding="utf-8")  # кириллица в консоли Windows
+    sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)  # кириллица в консоли Windows, вывод без задержек
 except Exception:  # noqa: BLE001
     pass
 
@@ -97,8 +97,14 @@ def load(a: argparse.Namespace, store) -> None:
         to = day(a.to) if a.to else datetime.now(timezone.utc)
         since = day(a.since)
         print(f"Загрузка из Ozon API: {since:%Y-%m-%d} → {to:%Y-%m-%d}, схемы: {a.schemes}. Это может занять несколько минут...")
+        client = OzonClient(cid, key)
+        print("Проверяю связь с api-seller.ozon.ru (до 20 секунд)...")
+        ok, msg = client.check()
+        print(("✓ " if ok else "✗ ") + msg)
+        if not ok:
+            sys.exit(1)
         try:
-            counts = sync(OzonClient(cid, key), store, since, to, tuple(a.schemes.split()))
+            counts = sync(client, store, since, to, tuple(a.schemes.split()))
         except OzonError as e:
             hint = ""
             if "403" in str(e):
