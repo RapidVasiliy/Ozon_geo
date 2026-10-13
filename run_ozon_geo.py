@@ -10,8 +10,9 @@
     python run_ozon_geo.py --source db                        # без загрузки: пересобрать отчёты из ozon.db
     python run_ozon_geo.py --source demo                      # демо-данные, ключи не нужны
 
-Ключи API (роль «Только чтение») берутся из переменных OZON_CLIENT_ID / OZON_API_KEY или запрашиваются
-при запуске (ключ вводится скрытно и нигде не сохраняется).
+Ключи API (роль «Только чтение») берутся из переменных OZON_CLIENT_ID / OZON_API_KEY, из файла .env рядом со
+скриптом (две строки: OZON_CLIENT_ID=... и OZON_API_KEY=...; файл не попадает в git) или запрашиваются при запуске
+(по умолчанию скрыто; если консоль не принимает скрытый ввод — флаг --visible-key).
 
 Нужно один раз:  pip install pandas requests openpyxl matplotlib
 """
@@ -47,6 +48,19 @@ METRIC = "quantity"       # quantity | revenue
 # =====================================================================================================
 
 
+def load_dotenv(*paths: Path) -> None:
+    """Читает файл .env (строки КЛЮЧ=значение) и задаёт переменные окружения, не перезаписывая уже заданные."""
+    for path in paths:
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="ozon-geo: загрузка FBS и отчёты кластер × SKU × месяц")
     ap.add_argument("--source", choices=["api", "csv", "db", "demo"], default=SOURCE)
@@ -60,6 +74,8 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--geo", choices=["cluster", "city"], default=GEO)
     ap.add_argument("--level", choices=["sku", "offer", "category", "type"], default=LEVEL)
     ap.add_argument("--metric", choices=["quantity", "revenue"], default=METRIC)
+    ap.add_argument("--visible-key", action="store_true",
+                    help="вводить Api-Key открыто (если консоль не принимает скрытый ввод)")
     ap.add_argument("--no-charts", action="store_true", help="не рисовать графики (быстрее, не нужен matplotlib)")
     return ap.parse_args()
 
@@ -85,15 +101,21 @@ def load(a: argparse.Namespace, store) -> None:
         from ozon_geo.client import OzonClient, OzonError
         from ozon_geo.sync import sync
 
+        load_dotenv(Path.cwd() / ".env", HERE / ".env")  # файл .env рядом со скриптом: две строки, см. README
         try:
             cid = os.environ.get("OZON_CLIENT_ID") or input("Client-Id: ").strip()
             if not os.environ.get("OZON_API_KEY"):
-                print("Теперь Api-Key. При вводе на экране НИЧЕГО не появляется (так задумано): вставьте ключ и нажмите Enter.")
-            key = os.environ.get("OZON_API_KEY") or getpass.getpass("Api-Key: ").strip()
+                if a.visible_key:
+                    print("Вставьте Api-Key (он будет виден на экране) и нажмите Enter.")
+                else:
+                    print("Теперь Api-Key. При вводе на экране НИЧЕГО не появляется (так задумано): вставьте ключ и нажмите Enter.")
+                    print("(Если после Enter ничего не происходит — консоль не принимает скрытый ввод: см. --visible-key или файл .env)")
+            key = os.environ.get("OZON_API_KEY") or (input("Api-Key: ") if a.visible_key else getpass.getpass("Api-Key: ")).strip()
         except EOFError:
             sys.exit("Ключи не заданы: укажите переменные OZON_CLIENT_ID и OZON_API_KEY или запустите скрипт в обычном окне терминала.")
         if not cid or not key:
             sys.exit("Нужны и Client-Id, и Api-Key.")
+        print(f"Ключи получены: Client-Id {cid}, Api-Key — {len(key)} символов (обычно 36).")
         to = day(a.to) if a.to else datetime.now(timezone.utc)
         since = day(a.since)
         print(f"Загрузка из Ozon API: {since:%Y-%m-%d} → {to:%Y-%m-%d}, схемы: {a.schemes}. Это может занять несколько минут...")

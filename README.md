@@ -11,6 +11,12 @@ python run_ozon_geo.py --since 2023-10-01 --to 2024-10-01
 python run_ozon_geo.py --source csv --csv "orders/*.csv"
 python run_ozon_geo.py --source db         # пересобрать отчёты из ozon.db без загрузки
 ```
+Ключи можно положить в файл `.env` рядом со скриптом (в git он не попадает):
+```
+OZON_CLIENT_ID=123456
+OZON_API_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+Если консоль не принимает скрытый ввод ключа (Git Bash, консоли некоторых редакторов) — `--visible-key` или `.env`.
 Результат в `out/`: `clusters_by_month.xlsx` (вкладка = кластер, строки = SKU, столбцы = месяцы), `ozon_geo.xlsx`,
 графики PNG и PDF. Настройки по умолчанию — в начале файла `run_ozon_geo.py`.
 
