@@ -21,8 +21,8 @@ def test_import_utf8_and_cp1251(name):
     assert len(df) == 4
     assert set(df["cluster"]) == {"Санкт-Петербург и СЗО", "Урал", "Сибирь"}
     assert df.loc[df["posting_number"] == "11111111-0001-1", "name"].iloc[0] == 'Бумага "Полоски"'  # "" разэкранировано
-    # в базе UTC, в таблице — московское время (19:19 в отчёте остаётся 19:19)
-    assert df.loc[df["posting_number"] == "11111111-0001-1", "created_at"].iloc[0].hour == 19
+    # в отчёте кабинета время UTC (19:19), в таблице — московское (22:19)
+    assert df.loc[df["posting_number"] == "11111111-0001-1", "created_at"].iloc[0].hour == 22
 
 
 def test_status_money_and_empty_city():

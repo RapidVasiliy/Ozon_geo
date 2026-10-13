@@ -31,7 +31,6 @@ COLUMNS = {
     "warehouse": "Склад отгрузки",
 }
 REQUIRED = ("posting_number", "created", "sku", "quantity", "cluster_to", "city")
-TZ = "Europe/Moscow"  # время в отчёте — московское (допущение)
 
 
 def _read(path: str | Path, sep: str | None = ";", **kw) -> pd.DataFrame:
@@ -60,9 +59,8 @@ def read_postings_csv(path: str | Path) -> pd.DataFrame:
     df = pd.DataFrame({k: raw[v] if v in raw.columns else "" for k, v in COLUMNS.items()})
     df["quantity"] = _num(df["quantity"]).clip(lower=1).astype(int)
     df["paid"] = _num(df["paid"])
-    created = pd.to_datetime(df["created"], errors="coerce").dt.tz_localize(TZ, ambiguous="NaT",
-                                                                          nonexistent="shift_forward")
-    df["created"] = created.dt.tz_convert("UTC").dt.strftime("%Y-%m-%dT%H:%M:%SZ").fillna("")
+    # время в отчёте кабинета — UTC: сверено с in_process_at из API (совпадает секунда в секунду)
+    df["created"] = pd.to_datetime(df["created"], errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%SZ").fillna("")
     cancelled = df["cancelled_at"].str.strip().ne("") | df["status"].str.lower().str.startswith("отмен")
     df.loc[cancelled, "status"] = "cancelled"
     return df

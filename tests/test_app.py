@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -113,3 +114,28 @@ def test_fbs_v4_cursor_pagination(monkeypatch):
     assert calls[0][1]["with"] == {"analytics_data": True, "financial_data": True}
     assert calls[0][1]["sort_dir"] == "ASC" and "dir" not in calls[0][1] and calls[0][1]["limit"] == 100
     assert set(calls[0][1]["filter"]) == {"since", "to"}  # без фильтров по статусам/складам: иначе вернётся пусто
+
+
+def test_real_v4_posting_shape():
+    """Структура отправления из реального ответа /v4/posting/fbs/list (цена — объект, кластеры в financial_data)."""
+    posting = {
+        "posting_number": "39430909-0154-12", "status": "delivered", "delivery_schema": "fbs",
+        "in_process_at": "2026-09-01T02:20:48Z", "customer": None, "addressee": None,
+        "delivery_method": {"warehouse": "Ветеранов"},
+        "products": [{"offer_id": "П1223", "name": "Парафинированная бумага", "sku": 1755765499, "quantity": 2,
+                      "price": {"amount": "279", "currency": "RUB"}}],
+        "analytics_data": {"region": "", "city": "", "delivery_type": "PVZ", "warehouse": "Ветеранов"},
+        "financial_data": {"products": [{"product_id": 1755765499, "price": 279,
+                                         "customer_price": {"amount": "241.9", "currency": "RUB"}}],
+                           "cluster_from": "Санкт-Петербург и СЗО", "cluster_to": "Москва, МО и Дальние регионы"},
+    }
+    st = Store(":memory:")
+    st.upsert_posting(posting, "fbs")
+    df = st.sales_frame().iloc[0]
+    assert df["cluster"] == "Москва, МО и Дальние регионы" and df["city"] == "(не определён)"
+    assert df["price"] == 241.9 and df["revenue"] == pytest.approx(483.8)  # цена покупателя × количество
+    assert df["created_at"].strftime("%Y-%m-%d %H:%M") == "2026-09-01 05:20"  # UTC -> Москва
+    # без financial_data.products — берётся price.amount
+    posting["financial_data"] = {"cluster_to": "Уфа"}
+    st.upsert_posting(posting, "fbs")
+    assert st.sales_frame().iloc[0]["price"] == 279.0

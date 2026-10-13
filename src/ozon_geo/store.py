@@ -26,6 +26,16 @@ UNKNOWN_CITY = "(не определён)"
 UNKNOWN_CATEGORY = "(без категории)"
 
 
+def _money(v) -> float:
+    """Сумма: число, строка или объект {"amount": "149", "currency": "RUB"} (так отдаёт API v4)."""
+    if isinstance(v, dict):
+        v = v.get("amount")
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 class Store:
     def __init__(self, path: str | Path = "ozon.db"):
         self.conn = sqlite3.connect(str(path))
@@ -52,11 +62,14 @@ class Store:
                  a.get("delivery_type", ""), a.get("warehouse_name") or a.get("warehouse", ""),
                  (f.get("cluster_from") or "").strip(), (f.get("cluster_to") or "").strip()))
             self.conn.execute("DELETE FROM items WHERE posting_number=?", (number,))
+            # цена, которую заплатил покупатель (за штуку), как «Оплачено покупателем» в отчёте кабинета
+            paid = {str(fp.get("product_id")): _money(fp.get("customer_price")) for fp in f.get("products") or []}
             for it in p.get("products", []):
+                price = paid.get(str(it.get("sku"))) or _money(it.get("price"))
                 self.conn.execute(
                     "INSERT OR REPLACE INTO items VALUES (?,?,?,?,?,?)",
                     (number, str(it.get("offer_id", "")), str(it.get("sku", "")), it.get("name", ""),
-                     int(it.get("quantity", 1)), float(it.get("price") or 0)))
+                     int(it.get("quantity", 1)), price))
 
     def missing_offer_ids(self) -> list[str]:
         rows = self.conn.execute(
