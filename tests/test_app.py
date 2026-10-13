@@ -90,3 +90,24 @@ def test_demo_clusters():
     generate(st, days=60, seed=2)
     df = analytics.prepare(st.sales_frame())
     assert set(df["cluster"]) >= {"Сибирь", "Урал"}
+
+
+def test_fbs_v4_cursor_pagination(monkeypatch):
+    from datetime import datetime, timezone
+
+    calls = []
+
+    def fake_post(self, path, body):
+        calls.append((path, dict(body)))
+        pages = {"": ({"has_next": True, "cursor": "c1", "postings": [{"posting_number": "1"}]}),
+                 "c1": ({"has_next": False, "cursor": "", "postings": [{"posting_number": "2"}]})}
+        return pages[body["cursor"]]
+
+    monkeypatch.setattr(OzonClient, "_post", fake_post)
+    c = OzonClient("1", "k")
+    a, b = datetime(2026, 1, 1, tzinfo=timezone.utc), datetime(2026, 3, 1, tzinfo=timezone.utc)
+    got = [p["posting_number"] for p in c.iter_fbs_postings(a, b)]
+    assert got == ["1", "2"]  # одно окно (< 90 дней), две страницы по курсору
+    assert [x[0] for x in calls] == ["/v4/posting/fbs/list"] * 2
+    assert calls[1][1]["cursor"] == "c1" and "offset" not in calls[1][1]
+    assert calls[0][1]["with"] == {"analytics_data": True, "financial_data": True}

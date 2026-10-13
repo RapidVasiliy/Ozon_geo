@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     s = sub.add_parser("sync", help="загрузить отправления из Ozon API")
     s.add_argument("--days", type=int, default=90)
     s.add_argument("--since"), s.add_argument("--to")
-    s.add_argument("--schemes", nargs="+", default=["fbs", "fbo"], choices=["fbs", "fbo"])
+    s.add_argument("--schemes", nargs="+", default=["fbs"], choices=["fbs", "fbo"])
     s.set_defaults(fn=_cmd_sync)
 
     c = sub.add_parser("import-csv", help="импорт CSV-отчёта по отправлениям из ЛК Ozon")

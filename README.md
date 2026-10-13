@@ -38,7 +38,7 @@ ozon-geo demo && ozon-geo report && ozon-geo forecast
 
 # с реальными данными (ЛК Ozon -> Настройки -> API-ключи)
 export OZON_CLIENT_ID=... OZON_API_KEY=...
-ozon-geo sync --days 180            # или --since 2026-01-01 --to 2026-06-30, --schemes fbs
+ozon-geo sync --days 180            # или --since 2026-01-01 --to 2026-06-30; по умолчанию только FBS, FBO: --schemes fbs fbo
 ozon-geo report --level category    # или type (тип товара), sku, offer (артикул); --metric revenue
 ozon-geo report --geo cluster       # по кластерам Ozon (для планирования остатков FBO)
 ```
@@ -51,7 +51,7 @@ ozon-geo report --geo cluster       # по кластерам Ozon (для пл�
 ## Устройство
 | Модуль | Роль |
 |---|---|
-| `client.py` | API: `/v3/posting/fbs/list`, `/v2/posting/fbo/list`, `/v3/product/info/list`, `/v1/description-category/tree`; окна по 30 дней, пагинация, ретраи на 429/5xx |
+| `client.py` | API: `/v4/posting/fbs/list` (v3 отключён 31.08.2026; постранично по `cursor`), `/v2/posting/fbo/list`, `/v3/product/info/list`, `/v1/description-category/tree`; окна по 30 дней, пагинация, ретраи на 429/5xx |
 | `store.py` | SQLite; загрузка идемпотентна (повторный `sync` не плодит дубли) |
 | `sync.py` | отправления -> категории по `offer_id` -> названия категорий |
 | `analytics.py` | категория × город, топ городов, `weekly_panel` |
@@ -75,5 +75,6 @@ ozon-geo report --geo cluster       # по кластерам Ozon (для пл�
 ## Ограничения
 - Город берётся из `analytics_data` отправления, кластер — из `financial_data` (названия полей взяты из документации по памяти, проверьте на реальном ответе); Ozon может не отдавать его для части схем/статусов —
   такие строки попадают в «(не определён)». Проверьте долю таких строк на своих данных.
+- Формат тела запроса `/v4/posting/fbs/list` выведен из v3 и ответа v4 (`has_next`/`cursor`/`postings`), с документацией не сверен.
 - Адаптер написан по документации API и проверен на моках/демо; на живом аккаунте не запускался.
 - Для товаров без категории в каталоге Ozon: «(без категории)».

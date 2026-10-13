@@ -9,7 +9,7 @@ from .store import Store
 
 
 def sync(client: OzonClient, store: Store, since: datetime | None = None, to: datetime | None = None,
-         schemes: tuple[str, ...] = ("fbs", "fbo"), log: Callable[[str], None] = print) -> dict[str, int]:
+         schemes: tuple[str, ...] = ("fbs",), log: Callable[[str], None] = print) -> dict[str, int]:
     to = to or datetime.now(timezone.utc)
     since = since or to - timedelta(days=90)
     counts: dict[str, int] = {}

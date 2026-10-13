@@ -14,7 +14,9 @@ import requests
 
 BASE_URL = "https://api-seller.ozon.ru"
 PAGE_LIMIT = 1000
-CHUNK_DAYS = 30  # Ozon ограничивает ширину окна фильтра по датам
+CHUNK_DAYS = 30  # окно для FBO
+FBS_CHUNK_DAYS = 90  # v4: окно до года; берём меньше, чтобы страниц было немного и запрос не падал
+FBS_PAGE_LIMIT = 100
 
 
 class OzonError(RuntimeError):
@@ -69,20 +71,27 @@ class OzonClient:
 
     # --- отправления ---------------------------------------------------------------------
     def iter_fbs_postings(self, since: datetime, to: datetime) -> Iterator[dict]:
-        """FBS/rFBS отправления. Город — в analytics_data."""
-        for lo, hi in date_chunks(since, to):
-            offset = 0
+        """FBS/rFBS отправления через /v4/posting/fbs/list (v3 отключён 31.08.2026). Постраничность — по курсору.
+
+        Окно запроса — до года (по документации v3); берём FBS_CHUNK_DAYS. Город — в analytics_data,
+        кластеры — в financial_data. ВНИМАНИЕ: формат тела v4 выведен из v3 и ответа v4 (has_next/cursor/postings)
+        и не сверен с документацией — проверьте на реальном запросе.
+        """
+        for lo, hi in date_chunks(since, to, FBS_CHUNK_DAYS):
+            cursor = ""
             while True:
-                body = {"dir": "ASC", "limit": PAGE_LIMIT, "offset": offset,
+                body = {"dir": "ASC", "limit": FBS_PAGE_LIMIT, "cursor": cursor,
                         "filter": {"since": _iso(lo), "to": _iso(hi)},
                         "with": {"analytics_data": True, "financial_data": True}}
-                result = self._post("/v3/posting/fbs/list", body).get("result", {})
-                postings = result.get("postings", [])
-                for p in postings:
-                    yield p
-                if not result.get("has_next") or not postings:
+                data = self._post("/v4/posting/fbs/list", body)
+                postings = data.get("postings")
+                if postings is None:  # на случай обёртки {"result": {...}}
+                    data = data.get("result", {}) or {}
+                    postings = data.get("postings", [])
+                yield from postings
+                cursor = data.get("cursor") or ""
+                if not data.get("has_next") or not cursor or not postings:
                     break
-                offset += len(postings)
 
     def iter_fbo_postings(self, since: datetime, to: datetime) -> Iterator[dict]:
         """FBO отправления (со склада Ozon)."""
