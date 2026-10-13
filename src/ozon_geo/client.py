@@ -47,6 +47,7 @@ class OzonClient:
         self.session = session or requests.Session()
         self.max_retries = max_retries
         self.backoff = backoff
+        self.progress = None  # необязательный обратный вызов: progress("текст") — сообщения о ходе загрузки
 
     def _post(self, path: str, body: dict) -> dict:
         headers = {"Client-Id": str(self.client_id), "Api-Key": self.api_key,
@@ -78,6 +79,8 @@ class OzonClient:
         Город — в analytics_data, кластеры — в financial_data (названия этих полей в ответе v4 не проверены).
         """
         for lo, hi in date_chunks(since, to, FBS_CHUNK_DAYS):
+            if self.progress:
+                self.progress(f"FBS: запрашиваю период {lo:%Y-%m-%d} → {hi:%Y-%m-%d}")
             cursor = ""
             while True:
                 body = {"sort_dir": "ASC", "limit": FBS_PAGE_LIMIT, "cursor": cursor,
@@ -96,6 +99,8 @@ class OzonClient:
     def iter_fbo_postings(self, since: datetime, to: datetime) -> Iterator[dict]:
         """FBO отправления (со склада Ozon)."""
         for lo, hi in date_chunks(since, to):
+            if self.progress:
+                self.progress(f"FBO: запрашиваю период {lo:%Y-%m-%d} → {hi:%Y-%m-%d}")
             offset = 0
             while True:
                 body = {"dir": "ASC", "limit": PAGE_LIMIT, "offset": offset, "translit": False,

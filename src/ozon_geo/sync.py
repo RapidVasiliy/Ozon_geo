@@ -12,6 +12,7 @@ def sync(client: OzonClient, store: Store, since: datetime | None = None, to: da
          schemes: tuple[str, ...] = ("fbs",), log: Callable[[str], None] = print) -> dict[str, int]:
     to = to or datetime.now(timezone.utc)
     since = since or to - timedelta(days=90)
+    client.progress = log
     counts: dict[str, int] = {}
     sources = {"fbs": client.iter_fbs_postings, "fbo": client.iter_fbo_postings}
     for scheme in schemes:

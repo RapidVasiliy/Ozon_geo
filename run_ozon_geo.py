@@ -87,14 +87,16 @@ def load(a: argparse.Namespace, store) -> None:
 
         try:
             cid = os.environ.get("OZON_CLIENT_ID") or input("Client-Id: ").strip()
-            key = os.environ.get("OZON_API_KEY") or getpass.getpass("Api-Key (ввод скрыт): ").strip()
+            if not os.environ.get("OZON_API_KEY"):
+                print("Теперь Api-Key. При вводе на экране НИЧЕГО не появляется (так задумано): вставьте ключ и нажмите Enter.")
+            key = os.environ.get("OZON_API_KEY") or getpass.getpass("Api-Key: ").strip()
         except EOFError:
             sys.exit("Ключи не заданы: укажите переменные OZON_CLIENT_ID и OZON_API_KEY или запустите скрипт в обычном окне терминала.")
         if not cid or not key:
             sys.exit("Нужны и Client-Id, и Api-Key.")
         to = day(a.to) if a.to else datetime.now(timezone.utc)
         since = day(a.since)
-        print(f"Загрузка из Ozon API: {since:%Y-%m-%d} → {to:%Y-%m-%d}, схемы: {a.schemes}")
+        print(f"Загрузка из Ozon API: {since:%Y-%m-%d} → {to:%Y-%m-%d}, схемы: {a.schemes}. Это может занять несколько минут...")
         try:
             counts = sync(OzonClient(cid, key), store, since, to, tuple(a.schemes.split()))
         except OzonError as e:

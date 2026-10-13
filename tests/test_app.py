@@ -157,3 +157,14 @@ def test_old_v4_posting_without_customer_price():
     row = st.sales_frame().iloc[0]
     assert row["price"] == 281.0 and row["cluster"] == "Москва, МО и Дальние регионы"
     assert row["created_at"].strftime("%Y-%m-%d") == "2023-10-13"
+
+
+def test_progress_callback_reports_windows(monkeypatch):
+    from datetime import datetime, timezone
+
+    monkeypatch.setattr(OzonClient, "_post", lambda self, path, body: {"has_next": False, "cursor": "", "postings": []})
+    c = OzonClient("1", "k")
+    msgs = []
+    c.progress = msgs.append
+    list(c.iter_fbs_postings(datetime(2026, 1, 1, tzinfo=timezone.utc), datetime(2026, 7, 1, tzinfo=timezone.utc)))
+    assert len(msgs) == 3 and msgs[0].startswith("FBS: запрашиваю период 2026-01-01")  # 181 день = 3 окна по 90
